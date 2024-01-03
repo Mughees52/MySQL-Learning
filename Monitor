@@ -15,8 +15,6 @@ THREADS_LOG_FILE="mysql1_threads_status.log"
 # Set the path to the lock file
 LOCK_FILE="/var/run/mysql_thread_logger.lock"
 
-ROTATION_MINUTES=1  # Number of minutes to keep old logs
-
 
 # Function to start the MySQL thread logger
 start_logger() {

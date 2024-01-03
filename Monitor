@@ -1,0 +1,74 @@
+#!/bin/bash
+
+# Set the path to the log directory
+LOG_DIR="/root/script/log"
+
+# Set the name of the log file
+LOG_FILE="mysql1_mysql_threads.log"
+
+# Set the name of the InnoDB log file
+INNODB_LOG_FILE="mysql1_innodb_engine_status.log"
+
+# Set the name of the threads connected/running log file
+THREADS_LOG_FILE="mysql1_threads_status.log"
+
+# Set the path to the lock file
+LOCK_FILE="/var/run/mysql_thread_logger.lock"
+
+ROTATION_MINUTES=1  # Number of minutes to keep old logs
+
+
+# Function to start the MySQL thread logger
+start_logger() {
+    nohup "$0" > /dev/null 2>&1 &
+    echo $! > "$LOCK_FILE"
+}
+
+# Check if another instance of the script is already running
+if [ -e "$LOCK_FILE" ] && kill -0 $(cat "$LOCK_FILE") 2>/dev/null; then
+    echo "Script is already running."
+    exit 1
+fi
+
+# Create a lock file
+echo $$ > "$LOCK_FILE"
+
+# Trap to remove the lock file on script exit
+trap 'rm -f "$LOCK_FILE"; exit' INT TERM EXIT
+
+# Infinite loop to continuously log MySQL thread and InnoDB information
+while true; do
+    # Get MySQL thread information with timestamp and write to the main log file
+    echo -e "$(date +"%Y-%m-%d %H:%M:%S")\n------------------------\n$(mysql -e 'SHOW FULL PROCESSLIST')" >> "$LOG_DIR/$LOG_FILE"
+
+    # Execute SHOW INNODB ENGINE STATUS every 2 seconds and write to the InnoDB log file
+    echo -e "$(date +"%Y-%m-%d %H:%M:%S")\n------------------------\n$(mysql -e 'SHOW ENGINE INNODB  STATUS\G')" >> "$LOG_DIR/$INNODB_LOG_FILE"
+
+    # Get TIMESTAMP, THREADS_CONNECTED, and THREADS_RUNNING information and write to the threads status log file
+    echo -e "$(date +"%Y-%m-%d %H:%M:%S")\t$(mysql -e 'SHOW GLOBAL STATUS LIKE "Threads_connected" \G' | awk '/Value:/ {print $2}')\t$(mysql -e 'SHOW GLOBAL STATUS LIKE "Threads_running" \G' | awk '/Value:/ {print $2}')" >> "$LOG_DIR/$THREADS_LOG_FILE"
+
+for file in /root/script/log/*.log; do
+    if [ -f "$file" ]; then
+        echo "File $file is a regular file."
+
+        # Check if the file was created more than 5 minutes ago
+        file_creation_time=$(stat -c %X "$file")
+        current_time=$(date +%s)
+        time_difference=$((current_time - file_creation_time))
+
+        if [ "$time_difference" -gt 60 ]; then  # 300 seconds = 5 minutes
+            echo "File $file was created more than 5 minutes ago. Rotating..."
+            timestamp=$(date +"%Y%m%d%H%M%S")
+            mv "$file" "${file}_${timestamp}.gz" && touch "$file"
+        else
+            echo "File $file was not created more than 5 minutes ago. No rotation needed."
+        fi
+    else
+        echo "File $file is not a regular file. Skipping..."
+    fi
+done
+
+    # Sleep for 2 seconds before the next iteration
+    sleep 1
+done
+

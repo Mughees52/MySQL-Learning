@@ -39,7 +39,7 @@ while true; do
     # Get MySQL thread information with timestamp and write to the main log file
     echo -e "$(date +"%Y-%m-%d %H:%M:%S")\n------------------------\n$(mysql -e 'SHOW FULL PROCESSLIST')" >> "$LOG_DIR/$LOG_FILE"
 
-    # Execute SHOW INNODB ENGINE STATUS every 2 seconds and write to the InnoDB log file
+    # Execute SHOW INNODB ENGINE STATUS every 1 seconds and write to the InnoDB log file
     echo -e "$(date +"%Y-%m-%d %H:%M:%S")\n------------------------\n$(mysql -e 'SHOW ENGINE INNODB  STATUS\G')" >> "$LOG_DIR/$INNODB_LOG_FILE"
 
     # Get TIMESTAMP, THREADS_CONNECTED, and THREADS_RUNNING information and write to the threads status log file
@@ -49,24 +49,24 @@ for file in /root/script/log/*.log; do
     if [ -f "$file" ]; then
         echo "File $file is a regular file."
 
-        # Check if the file was created more than 5 minutes ago
+        # Check if the file was created more than 43200 seconds ago
         file_creation_time=$(stat -c %X "$file")
         current_time=$(date +%s)
         time_difference=$((current_time - file_creation_time))
 
-        if [ "$time_difference" -gt 60 ]; then  # 300 seconds = 5 minutes
+        if [ "$time_difference" -gt 43200 ]; then  # 43200 seconds = 12 hours
             echo "File $file was created more than 5 minutes ago. Rotating..."
             timestamp=$(date +"%Y%m%d%H%M%S")
             mv "$file" "${file}_${timestamp}.gz" && touch "$file"
         else
-            echo "File $file was not created more than 5 minutes ago. No rotation needed."
+            echo "File $file was not created more than 12 hours ago. No rotation needed."
         fi
     else
         echo "File $file is not a regular file. Skipping..."
     fi
 done
 
-    # Sleep for 2 seconds before the next iteration
+    # Sleep for 1 seconds before the next iteration
     sleep 1
 done
 
